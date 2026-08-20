@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, PropertyMock
 
 import pytest
+from PIL import Image
 
 
 # ---------------------------------------------------------------------------
@@ -55,6 +57,55 @@ class TestCtrlRegenAvailability:
             from ctrlregen.engine import is_ctrlregen_available
 
             assert is_ctrlregen_available() is False
+
+
+# ---------------------------------------------------------------------------
+# Tile compositing
+# ---------------------------------------------------------------------------
+
+class _PassthroughPipeline:
+    """Return the padded tile so tests exercise edge compositing only."""
+
+    def __call__(self, **kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(images=[kwargs["image"][0]])
+
+
+class _PassthroughCanny:
+    """Avoid model work while keeping the tiled ControlNet call shape intact."""
+
+    def __call__(self, image: Image.Image, **_kwargs: object) -> Image.Image:
+        return image
+
+
+class TestCtrlRegenTiling:
+    @pytest.mark.parametrize("dimensions", [(720, 480), (480, 720)])
+    def test_clips_padded_edge_tile_to_canvas(
+        self, dimensions: tuple[int, int]
+    ) -> None:
+        """Wide and tall inputs must not blend 512px padding outside the canvas."""
+        from ctrlregen.tiling import run_tiled
+
+        source_color = (17, 23, 31)
+        result = run_tiled(
+            pipeline=_PassthroughPipeline(),
+            canny_detector=_PassthroughCanny(),
+            image=Image.new("RGB", dimensions, color=source_color),
+            strength=0.04,
+            num_inference_steps=50,
+            guidance_scale=2.0,
+            seed=1,
+            tile_size=512,
+            tile_overlap=192,
+            quality_prompt="test",
+            negative_prompt="test",
+            canny_low=100,
+            canny_high=150,
+            device="cpu",
+            set_progress=lambda _message: None,
+        )
+
+        assert result.size == dimensions
+        assert result.getpixel((dimensions[0] // 2, dimensions[1] // 2)) == source_color
 
 
 # ---------------------------------------------------------------------------

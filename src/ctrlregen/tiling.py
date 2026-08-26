@@ -163,10 +163,13 @@ def run_tiled(
                 )
 
             proc_arr = np.array(result.images[0], dtype=np.float64)
-            th, tw = proc_arr.shape[:2]
-            mask = blend_w[:th, :tw]
-            canvas[ty:ty + th, tx:tx + tw] += proc_arr * mask[..., None]
-            weight_sum[ty:ty + th, tx:tx + tw] += mask
+            result_h, result_w = proc_arr.shape[:2]
+            blend_height = min(result_h, h - ty)
+            blend_width = min(result_w, w - tx)
+            proc_arr = proc_arr[:blend_height, :blend_width]
+            mask = blend_w[:blend_height, :blend_width]
+            canvas[ty:ty + blend_height, tx:tx + blend_width] += proc_arr * mask[..., None]
+            weight_sum[ty:ty + blend_height, tx:tx + blend_width] += mask
 
             tile_time = time.monotonic() - tile_t0
             total_elapsed = time.monotonic() - t0

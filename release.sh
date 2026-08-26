@@ -146,6 +146,7 @@ create_release() {
   gh release create "$tag" \
     --title "v${version}" \
     --notes "Release ${version}" \
+    --generate-notes \
     --latest
 }
 
